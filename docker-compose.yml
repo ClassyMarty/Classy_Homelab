@@ -1,0 +1,126 @@
+# Bella's Homelab Docker Compose Cheat Sheet
+# =========================================
+# This file provides a starting point for setting up
+# all the major services of our homelab.
+# Copy this to your root and customize your environment variables.
+
+x-defaults: &default
+  restart: always
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  # 🎛️ Docker Management UI
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    ports:
+      - "9443:9443"
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    <<: *default
+
+  # ✨ Dashboard/Aggregator
+  homarr:
+    image: ghcr.io/ajnart/homarr:latest
+    container_name: homarr
+    ports:
+      - "7575:7575"
+    volumes:
+      - homarr_data:/data
+      - homarr_configs:/app/data/configs
+      - homarr_icons:/app/public/icons
+    <<: *default
+
+  # 📚 Manga/Comic Reader
+  kavita:
+    image: jvmilazz0/kavita:latest
+    container_name: kavita
+    ports:
+      - "5000:5000"
+    environment:
+      - TZ=${TZ:-America/Los_Angeles}
+    volumes:
+      - kavita_config:/kavita/config
+      - /mnt/pve/Stuff/media/manga:/manga
+      - /mnt/pve/Stuff/media/comics:/comics
+    <<: *default
+
+  # 📁 File Sync & Sharing
+  seafile-server:
+    image: seafileltd/seahub:latest
+    container_name: seafile-server
+    environment:
+      - DB_HOST=mariadb
+      - DB_ROOT_PASSWD=${DB_ROOT_PASSWD}
+      - SEAFILE_SERVER_LETSENCRYPT=false
+      - SEAFILE_SERVER_HOSTNAME=${SEAFILE_HOSTNAME}
+    volumes:
+      - seafile_data:/shared
+    depends_on:
+      - mariadb
+    <<: *default
+
+  # 🎓 Learning Management System
+  moodle:
+    image: bitnami/moodle:latest
+    container_name: moodle
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    environment:
+      - MOODLE_DATABASE_HOST=mariadb
+      - MOODLE_DATABASE_PORT_NUMBER=3306
+      - MOODLE_DATABASE_USER=${MOODLE_DB_USER}
+      - MOODLE_DATABASE_PASSWORD=${MOODLE_DB_PASS}
+      - MOODLE_DATABASE_NAME=${MOODLE_DB_NAME}
+      - MOODLE_USERNAME=${MOODLE_ADMIN_USER}
+      - MOODLE_PASSWORD=${MOODLE_ADMIN_PASS}
+    volumes:
+      - moodle_data:/bitnami/moodledata
+    depends_on:
+      - mariadb
+    <<: *default
+
+  # 🔐 Password Management (Bitwarden Compatible)
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    ports:
+      - "8081:80"
+    environment:
+      - SIGNUPS_ALLOWED=false
+      - DOMAIN=https://vaultwarden.${DOMAIN}
+    volumes:
+      - vaultwarden_data:/data
+    <<: *default
+
+  # 💾 MariaDB - Shared Database Container
+  mariadb:
+    image: mariadb:10.8
+    container_name: mariadb
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWD}
+      - MYSQL_DATABASE=${MOODLE_DB_NAME}
+      - MYSQL_USER=${MOODLE_DB_USER}
+      - MYSQL_PASSWORD=${MOODLE_DB_PASS}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    <<: *default
+
+# Volumes for data persistence
+volumes:
+  portainer_data:
+  homarr_data:
+  homarr_configs:
+  homarr_icons:
+  kavita_config:
+  seafile_data:
+  moodle_data:
+  vaultwarden_data:
+  mariadb_data:
